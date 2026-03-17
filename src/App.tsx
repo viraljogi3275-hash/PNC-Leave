@@ -1164,8 +1164,8 @@ function CalendarView({ user }: { user: User }) {
             <div key={mIdx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
               <h3 className="text-lg font-bold text-slate-800 mb-6 text-center">{format(monthDate, 'MMMM yyyy')}</h3>
               <div className="grid grid-cols-7 gap-1">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-                  <div key={d} className="text-center text-[10px] font-bold text-slate-400 uppercase mb-2">{d}</div>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                  <div key={`${d}-${i}`} className="text-center text-[10px] font-bold text-slate-400 uppercase mb-2">{d}</div>
                 ))}
                 {calendarDays.map((day, idx) => {
                   if (!day) return <div key={`empty-${idx}`} className="aspect-square"></div>;
