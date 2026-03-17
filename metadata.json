@@ -1,0 +1,5 @@
+{
+  "name": "PNC Leave Management System",
+  "description": "A comprehensive leave management system for PNC with roles for Senders, Approvers, and Admins.",
+  "requestFramePermissions": []
+}
