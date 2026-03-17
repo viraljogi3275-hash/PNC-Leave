@@ -44,6 +44,8 @@ export interface LeaveRequest {
   other_reason?: string;
   status: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string;
+  sick_hours_requested?: boolean;
+  vacation_hours_requested?: boolean;
   created_at: string;
 }
 

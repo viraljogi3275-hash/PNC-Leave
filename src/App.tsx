@@ -24,7 +24,7 @@ import {
   Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { format } from 'date-fns';
+import { format, addMonths, getDaysInMonth, getDay } from 'date-fns';
 import { cn } from './lib/utils';
 import { User, LeaveRequest, Notification, Department, SubDepartment } from './types';
 
@@ -511,7 +511,7 @@ function Dashboard({ user, setActiveTab }: { user: User, setActiveTab: (t: strin
         </div>
       </div>
 
-      {['supervisor', 'manager', 'planner', 'quality', 'admin', 'approver'].includes(user.role) && (
+      {['sender', 'supervisor', 'manager', 'planner', 'quality', 'admin', 'approver'].includes(user.role) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-slate-800">Leave Calendar</h3>
@@ -542,13 +542,13 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode, label:
   };
 
   return (
-    <div className={cn("p-6 rounded-2xl border flex items-center gap-4 transition-transform hover:scale-[1.02]", colors[color])}>
-      <div className="p-3 bg-white rounded-xl shadow-sm">
-        {icon}
+    <div className={cn("p-4 rounded-xl border flex items-center gap-3 transition-transform hover:scale-[1.02]", colors[color])}>
+      <div className="p-2 bg-white rounded-lg shadow-sm">
+        {React.cloneElement(icon as React.ReactElement, { size: 18 })}
       </div>
       <div>
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <p className="text-2xl font-bold text-slate-800">{value}</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+        <p className="text-lg font-bold text-slate-800">{value}</p>
       </div>
     </div>
   );
@@ -569,7 +569,9 @@ function ApplyLeave({ user, onSuccess }: { user: User, onSuccess: () => void }) 
     days: 1,
     reason_type: 'Medical' as 'Medical' | 'Parenthood' | 'Others',
     other_reason: '',
-    reason: ''
+    reason: '',
+    sick_hours_requested: false,
+    vacation_hours_requested: false
   });
 
   const calculateHours = (from: string, to: string) => {
@@ -700,6 +702,16 @@ function ApplyLeave({ user, onSuccess }: { user: User, onSuccess: () => void }) 
 
           {mode === 'hours' ? (
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                <input 
+                  type="date" 
+                  required
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value, end_date: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">From Time</label>
                 <input 
@@ -788,8 +800,36 @@ function ApplyLeave({ user, onSuccess }: { user: User, onSuccess: () => void }) 
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 placeholder="Enter details..."
               ></textarea>
-          </motion.div>
+            </motion.div>
           )}
+
+          <div className="space-y-3 pt-2">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative flex items-center">
+                <input 
+                  type="checkbox" 
+                  checked={formData.sick_hours_requested}
+                  onChange={(e) => setFormData({ ...formData, sick_hours_requested: e.target.checked })}
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 checked:bg-blue-600 checked:border-blue-600 transition-all"
+                />
+                <Check className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 pointer-events-none" />
+              </div>
+              <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors">Request to add Sick Hours if available</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative flex items-center">
+                <input 
+                  type="checkbox" 
+                  checked={formData.vacation_hours_requested}
+                  onChange={(e) => setFormData({ ...formData, vacation_hours_requested: e.target.checked })}
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 checked:bg-emerald-600 checked:border-emerald-600 transition-all"
+                />
+                <Check className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 pointer-events-none" />
+              </div>
+              <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors">Request to add Vacation Hours if Available</span>
+            </label>
+          </div>
 
           <button 
             type="submit"
@@ -896,18 +936,36 @@ function LeaveHistory({ user }: { user: User }) {
                         )}
                       </div>
                     )}
-                    {user.role !== 'sender' && (
-                      <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-medium">
-                        {leave.type}
-                      </span>
+                    <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-medium capitalize">
+                      {leave.type}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                    <p className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      {leave.start_date === leave.end_date 
+                        ? format(new Date(leave.start_date), 'MMM d, yyyy')
+                        : `${format(new Date(leave.start_date), 'MMM d')} - ${format(new Date(leave.end_date), 'MMM d, yyyy')}`}
+                    </p>
+                    {leave.type === 'hours' && (
+                      <p className="flex items-center gap-1">
+                        <Clock size={12} />
+                        {leave.from_time} - {leave.to_time} ({leave.hours} hrs)
+                      </p>
+                    )}
+                    {leave.type === 'days' && (
+                      <p className="flex items-center gap-1">
+                        <Clock size={12} />
+                        {leave.days} Days
+                      </p>
+                    )}
+                    {(leave.sick_hours_requested || leave.vacation_hours_requested) && (
+                      <div className="flex gap-2 mt-1">
+                        {leave.sick_hours_requested && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-bold">Sick Hours</span>}
+                        {leave.vacation_hours_requested && <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold">Vacation Hours</span>}
+                      </div>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
-                    <Calendar size={14} />
-                    {leave.start_date === leave.end_date 
-                      ? format(new Date(leave.start_date), 'MMM d, yyyy')
-                      : `${format(new Date(leave.start_date), 'MMM d')} - ${format(new Date(leave.end_date), 'MMM d, yyyy')}`}
-                  </p>
                   <p className="text-sm text-slate-600 mt-2 line-clamp-1 italic">"{leave.reason}"</p>
                   {leave.rejection_reason && (
                     <p className={cn(
@@ -973,15 +1031,49 @@ function LeaveHistory({ user }: { user: User }) {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Dates</span>
                   <span className="font-bold text-slate-800">
-                    {selectedLeave.start_date} to {selectedLeave.end_date}
+                    {selectedLeave.start_date === selectedLeave.end_date 
+                      ? selectedLeave.start_date 
+                      : `${selectedLeave.start_date} to ${selectedLeave.end_date}`}
                   </span>
                 </div>
+                {selectedLeave.type === 'hours' && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Time</span>
+                      <span className="font-bold text-slate-800">{selectedLeave.from_time} - {selectedLeave.to_time}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Total Hours</span>
+                      <span className="font-bold text-slate-800">{selectedLeave.hours} Hours</span>
+                    </div>
+                  </>
+                )}
+                {selectedLeave.type === 'days' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Total Days</span>
+                    <span className="font-bold text-slate-800">{selectedLeave.days} Days</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Type</span>
                   <span className="font-bold text-slate-800 capitalize">{selectedLeave.type}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Reason Type</span>
+                  <span className="font-bold text-slate-800">{selectedLeave.reason_type}</span>
+                </div>
+                {(selectedLeave.sick_hours_requested || selectedLeave.vacation_hours_requested) && (
+                  <div className="pt-2 flex gap-2">
+                    {selectedLeave.sick_hours_requested && (
+                      <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-bold">Sick Hours Requested</span>
+                    )}
+                    {selectedLeave.vacation_hours_requested && (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-bold">Vacation Hours Requested</span>
+                    )}
+                  </div>
+                )}
                 <div className="pt-4 border-t border-slate-50">
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Reason</label>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Reason Details</label>
                   <p className="text-slate-700 bg-slate-50 p-3 rounded-xl text-sm italic">"{selectedLeave.reason}"</p>
                 </div>
 
@@ -1025,7 +1117,7 @@ function CalendarView({ user }: { user: User }) {
 
   useEffect(() => {
     fetchLeaves();
-  }, [currentDate]);
+  }, []);
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -1035,105 +1127,109 @@ function CalendarView({ user }: { user: User }) {
     setLoading(false);
   };
 
-  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const totalDays = daysInMonth(year, month);
-  const startDay = firstDayOfMonth(year, month);
-
-  const calendarDays = [];
-  for (let i = 0; i < startDay; i++) calendarDays.push(null);
-  for (let i = 1; i <= totalDays; i++) calendarDays.push(i);
-
-  const getLeavesForDate = (day: number) => {
-    const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
-    return leaves.filter(l => {
-      const start = l.start_date;
-      const end = l.end_date;
-      return dateStr >= start && dateStr <= end;
-    });
+  const getMonths = () => {
+    const months = [];
+    for (let i = 0; i < 3; i++) {
+      months.push(addMonths(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1), i));
+    }
+    return months;
   };
 
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonths = () => setCurrentDate(addMonths(currentDate, 3));
+  const prevMonths = () => setCurrentDate(addMonths(currentDate, -3));
 
   if (loading) return <div className="text-center py-12">Loading calendar...</div>;
 
-  const selectedDateLeaves = selectedDate ? getLeavesForDate(parseInt(selectedDate.split('-')[2])) : [];
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-xl font-bold text-slate-800">{format(currentDate, 'MMMM yyyy')}</h3>
-          <div className="flex gap-2">
-            <button onClick={prevMonth} className="p-2 hover:bg-slate-50 rounded-lg"><ChevronLeft size={20} /></button>
-            <button onClick={nextMonth} className="p-2 hover:bg-slate-50 rounded-lg"><ChevronRight size={20} /></button>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <button onClick={prevMonths} className="p-2 hover:bg-slate-50 rounded-lg border border-slate-200"><ChevronLeft size={20} /></button>
+          <button onClick={nextMonths} className="p-2 hover:bg-slate-50 rounded-lg border border-slate-200"><ChevronRight size={20} /></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {getMonths().map((monthDate, mIdx) => {
+          const year = monthDate.getFullYear();
+          const month = monthDate.getMonth();
+          const totalDays = getDaysInMonth(monthDate);
+          const startDay = getDay(monthDate);
+
+          const calendarDays = [];
+          for (let i = 0; i < startDay; i++) calendarDays.push(null);
+          for (let i = 1; i <= totalDays; i++) calendarDays.push(i);
+
+          return (
+            <div key={mIdx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-800 mb-6 text-center">{format(monthDate, 'MMMM yyyy')}</h3>
+              <div className="grid grid-cols-7 gap-1">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+                  <div key={d} className="text-center text-[10px] font-bold text-slate-400 uppercase mb-2">{d}</div>
+                ))}
+                {calendarDays.map((day, idx) => {
+                  if (!day) return <div key={`empty-${idx}`} className="aspect-square"></div>;
+                  
+                  const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
+                  const dayLeaves = leaves.filter(l => dateStr >= l.start_date && dateStr <= l.end_date);
+                  const hasPending = dayLeaves.some(l => l.status === 'pending');
+                  const hasApproved = dayLeaves.some(l => l.status === 'approved');
+                  const isSelected = selectedDate === dateStr;
+
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDate(dateStr)}
+                      className={cn(
+                        "aspect-square rounded-xl flex flex-col items-center justify-center relative transition-all border text-xs",
+                        isSelected ? "border-blue-500 ring-2 ring-blue-100" : "border-transparent hover:bg-slate-50",
+                        hasPending ? "bg-amber-50" : hasApproved ? "bg-emerald-50" : "bg-white"
+                      )}
+                    >
+                      <span className={cn("font-bold", isSelected ? "text-blue-600" : "text-slate-700")}>{day}</span>
+                      <div className="flex gap-0.5 mt-0.5">
+                        {hasPending && <div className="w-1 h-1 rounded-full bg-amber-400"></div>}
+                        {hasApproved && <div className="w-1 h-1 rounded-full bg-emerald-400"></div>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {selectedDate && (
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <h4 className="text-lg font-bold text-slate-800 mb-6">
+            Leaves on {format(new Date(selectedDate), 'MMM d, yyyy')}
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {leaves.filter(l => selectedDate >= l.start_date && selectedDate <= l.end_date).length > 0 ? (
+              leaves.filter(l => selectedDate >= l.start_date && selectedDate <= l.end_date).map(l => (
+                <div key={l.id} className={cn(
+                  "p-4 rounded-2xl border",
+                  l.status === 'pending' ? "bg-amber-50 border-amber-100" : "bg-emerald-50 border-emerald-100"
+                )}>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-slate-800">{l.sender_name}</span>
+                    <StatusBadge status={l.status} />
+                  </div>
+                  <p className="text-xs text-slate-500 mb-1">{l.type} Leave</p>
+                  {l.type === 'hours' && <p className="text-[10px] text-blue-600 font-bold mb-1">{l.from_time} - {l.to_time} ({l.hours} hrs)</p>}
+                  <p className="text-xs text-slate-600 italic line-clamp-2">"{l.reason}"</p>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12 text-slate-400">
+                <Calendar size={32} className="mx-auto mb-2 opacity-20" />
+                <p className="text-sm">No leave requests for this date</p>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="grid grid-cols-7 gap-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-            <div key={d} className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{d}</div>
-          ))}
-          {calendarDays.map((day, idx) => {
-            if (!day) return <div key={`empty-${idx}`} className="aspect-square"></div>;
-            
-            const dayLeaves = getLeavesForDate(day);
-            const hasPending = dayLeaves.some(l => l.status === 'pending');
-            const hasApproved = dayLeaves.some(l => l.status === 'approved');
-            const isSelected = selectedDate === format(new Date(year, month, day), 'yyyy-MM-dd');
-
-            return (
-              <button
-                key={day}
-                onClick={() => setSelectedDate(format(new Date(year, month, day), 'yyyy-MM-dd'))}
-                className={cn(
-                  "aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all border",
-                  isSelected ? "border-blue-500 ring-2 ring-blue-100" : "border-transparent hover:bg-slate-50",
-                  hasPending ? "bg-amber-50" : hasApproved ? "bg-emerald-50" : "bg-white"
-                )}
-              >
-                <span className={cn("text-sm font-bold", isSelected ? "text-blue-600" : "text-slate-700")}>{day}</span>
-                <div className="flex gap-1 mt-1">
-                  {hasPending && <div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div>}
-                  {hasApproved && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-        <h4 className="text-lg font-bold text-slate-800 mb-6">
-          {selectedDate ? `Leaves on ${format(new Date(selectedDate), 'MMM d, yyyy')}` : 'Select a date to view leaves'}
-        </h4>
-        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-          {selectedDateLeaves.length > 0 ? (
-            selectedDateLeaves.map(l => (
-              <div key={l.id} className={cn(
-                "p-4 rounded-2xl border",
-                l.status === 'pending' ? "bg-amber-50 border-amber-100" : "bg-emerald-50 border-emerald-100"
-              )}>
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-slate-800">{l.sender_name}</span>
-                  <StatusBadge status={l.status} />
-                </div>
-                <p className="text-xs text-slate-500 mb-1">{l.type} Leave</p>
-                <p className="text-xs text-slate-600 italic line-clamp-2">"{l.reason}"</p>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 text-slate-400">
-              <Calendar size={32} className="mx-auto mb-2 opacity-20" />
-              <p className="text-sm">No leave requests for this date</p>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

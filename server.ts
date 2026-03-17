@@ -10,7 +10,8 @@ import bcrypt from "bcryptjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("leave_management.db");
+const dbPath = process.env.DB_PATH || "leave_management.db";
+const db = new Database(dbPath);
 
 // CRITICAL: Do NOT add any code that drops tables or deletes all records on startup.
 // The user wants to persist their data across restarts.
@@ -111,7 +112,9 @@ const migrations = [
   "ALTER TABLE leaves ADD COLUMN to_time TEXT",
   "ALTER TABLE leaves ADD COLUMN days INTEGER",
   "ALTER TABLE leaves ADD COLUMN reason_type TEXT",
-  "ALTER TABLE leaves ADD COLUMN other_reason TEXT"
+  "ALTER TABLE leaves ADD COLUMN other_reason TEXT",
+  "ALTER TABLE leaves ADD COLUMN sick_hours_requested INTEGER DEFAULT 0",
+  "ALTER TABLE leaves ADD COLUMN vacation_hours_requested INTEGER DEFAULT 0"
 ];
 
 for (const migration of migrations) {
@@ -154,7 +157,7 @@ async function startServer() {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer);
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
@@ -427,12 +430,23 @@ async function startServer() {
   });
 
   app.post("/api/leaves", (req, res) => {
-    const { sender_id, start_date, end_date, from_time, to_time, type, hours, days, reason_type, reason, other_reason } = req.body;
+    const { 
+      sender_id, start_date, end_date, from_time, to_time, 
+      type, hours, days, reason_type, reason, other_reason,
+      sick_hours_requested, vacation_hours_requested
+    } = req.body;
     try {
       const result = db.prepare(`
-        INSERT INTO leaves (sender_id, start_date, end_date, from_time, to_time, type, hours, days, reason_type, reason, other_reason) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(sender_id, start_date, end_date, from_time || null, to_time || null, type, hours || null, days || null, reason_type, reason, other_reason || null);
+        INSERT INTO leaves (
+          sender_id, start_date, end_date, from_time, to_time, 
+          type, hours, days, reason_type, reason, other_reason,
+          sick_hours_requested, vacation_hours_requested
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        sender_id, start_date, end_date, from_time || null, to_time || null, 
+        type, hours || null, days || null, reason_type, reason, other_reason || null,
+        sick_hours_requested ? 1 : 0, vacation_hours_requested ? 1 : 0
+      );
       
       const leaveId = result.lastInsertRowid;
       
